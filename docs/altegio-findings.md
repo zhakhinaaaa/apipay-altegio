@@ -39,3 +39,30 @@
 предоплаты Altegio на уровне сотрудника сейчас выключен.
 
 `GET /transactions/{company_id}` — пусто, транзакций ещё нет.
+
+
+## Подключение приложения (рабочая схема)
+
+Altegio шлёт вебхуки только приложению, **подключённому к филиалу**.
+Прописать webhook URL в кабинете разработчика недостаточно.
+
+1. Кабинет разработчика → приложение типа **Non-public** (модерация не нужна).
+2. Connection settings:
+   - Address to send notifications to → `<public>/webhooks/altegio`
+   - Callback Url → `<public>/altegio/uninstall`
+   - Registration Redirect Url → `<public>/altegio/install`
+   Подключение завершается только если Registration Redirect Url отвечает.
+3. API Access → отметить права **до** подключения. Системный пользователь
+   добавляется в филиал с теми правами, что заданы на момент подключения;
+   после изменения прав нужно Disconnect + Connect заново.
+4. API Access отдаёт **системный User Token** приложения — интеграция должна
+   ходить в API под ним, а не под личным токеном сотрудника.
+
+Тестовое приложение: ID `2315`, `apipay_prepay_test`, аккаунт разработчика
+ApiPay1 (партнёр 2548).
+
+## Проверенная сквозная цепочка
+
+    POST /webhooks/altegio  <- Altegio (UA GuzzleHttp/7), 2 события, 1 счёт
+    POST /webhooks/apipay   <- ApiPay  (UA Kaspi-Pay-API/1.0)
+    -> приход 9000 в кассе «Расчетный счет», комментарий со счётом
