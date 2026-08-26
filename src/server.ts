@@ -6,8 +6,14 @@ import { altegioWebhookRoutes } from "./webhooks/altegio";
 import { BookingError, createInvoiceForRecord } from "./booking";
 
 const app = Fastify({
+  // Автолог каждого запроса выключен: в консоли остаются только
+  // осмысленные события интеграции.
+  disableRequestLogging: true,
   logger: {
-    transport: { target: "pino-pretty" },
+    transport: {
+      target: "pino-pretty",
+      options: { translateTime: "HH:MM:ss", ignore: "pid,hostname" },
+    },
     redact: [
       "req.headers.authorization",
       "req.headers['x-api-key']",
