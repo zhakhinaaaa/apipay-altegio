@@ -70,6 +70,9 @@ export const apipayWebhookRoutes: FastifyPluginAsync = async (app: FastifyInstan
     }
   );
 
+  // Некоторые сервисы проверяют доступность адреса обычным GET перед сохранением.
+  app.get("/webhooks/apipay", async () => ({ ok: true, endpoint: "apipay" }));
+
   app.post("/webhooks/apipay", async (req, reply) => {
     const raw = req.rawBody ?? Buffer.alloc(0);
     const signature = req.headers[SIGNATURE_HEADER] as string | undefined;

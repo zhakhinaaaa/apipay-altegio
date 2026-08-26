@@ -19,6 +19,9 @@ function claimEvent(dedupeKey: string): boolean {
 }
 
 export const altegioWebhookRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
+  // Altegio проверяет адрес GET-запросом перед сохранением настройки.
+  app.get("/webhooks/altegio", async () => ({ ok: true, endpoint: "altegio" }));
+
   app.post("/webhooks/altegio", async (req, reply) => {
     const payload = req.body as AltegioEvent | AltegioEvent[];
     const events = Array.isArray(payload) ? payload : [payload];
