@@ -21,5 +21,7 @@ export const config = {
     partnerToken: optional("ALTEGIO_PARTNER_TOKEN"),
     userToken: optional("ALTEGIO_USER_TOKEN"),
     companyId: optional("ALTEGIO_COMPANY_ID"),
+    accountId: optional("ALTEGIO_ACCOUNT_ID"),
+    expenseId: Number(process.env.ALTEGIO_EXPENSE_ID ?? 5),
   },
 };

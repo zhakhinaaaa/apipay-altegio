@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import { config } from "../config";
 import { db } from "../db";
+import { findByInvoiceId, markPrepaymentInAltegio } from "../booking";
 
 const SIGNATURE_HEADER = "x-webhook-signature";
 
@@ -100,17 +101,15 @@ export const apipayWebhookRoutes: FastifyPluginAsync = async (app: FastifyInstan
     }
 
     // Отвечаем быстро (лимит ApiPay — 5 секунд), работу делаем после ответа.
-    setImmediate(() => handleStatusChange(app, String(invoiceId), status));
+    setImmediate(() => void handleStatusChange(app, String(invoiceId), status));
 
     return reply.code(200).send({ ok: true });
   });
 };
 
-function handleStatusChange(app: FastifyInstance, invoiceId: string, status: string) {
+async function handleStatusChange(app: FastifyInstance, invoiceId: string, status: string) {
   try {
-    const booking = db
-      .prepare("SELECT * FROM bookings WHERE apipay_invoice_id = ?")
-      .get(invoiceId) as Record<string, unknown> | undefined;
+    const booking = findByInvoiceId(invoiceId);
 
     if (!booking) {
       app.log.warn({ invoiceId, status }, "apipay webhook: no booking linked to invoice");
@@ -129,13 +128,14 @@ function handleStatusChange(app: FastifyInstance, invoiceId: string, status: str
       "UPDATE bookings SET status = 'paid', updated_at = datetime('now') WHERE apipay_invoice_id = ?"
     ).run(invoiceId);
 
+    // Вариант Б: приход по кассе Altegio как отметка предоплаты.
+    const marked = await markPrepaymentInAltegio(booking);
     app.log.info(
-      { invoiceId, altegioRecordId: booking.altegio_record_id },
-      "apipay webhook: invoice paid"
+      { invoiceId, altegioRecordId: booking.altegio_record_id, marked },
+      marked
+        ? "apipay webhook: prepayment recorded in Altegio"
+        : "apipay webhook: prepayment already recorded, skipped"
     );
-
-    // TODO (шаг 6): отметить предоплату в записи Altegio.
-    // Метод согласовывается с Георгием — см. п.5 ТЗ.
   } catch (err) {
     // Ошибка обработки не должна ронять приложение.
     app.log.error({ err, invoiceId, status }, "apipay webhook: processing failed");
