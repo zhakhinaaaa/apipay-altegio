@@ -19,6 +19,21 @@ function claimEvent(dedupeKey: string): boolean {
 }
 
 export const altegioWebhookRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
+  // Altegio ведёт сюда после согласия на подключение приложения к филиалу
+  // (Registration Redirect Url). Достаточно ответить 200 — установка завершится.
+  app.get("/altegio/install", async (req, reply) => {
+    req.log.info({ query: req.query }, "altegio: установка приложения в филиал");
+    return reply.type("text/html").send(
+      "<h2>ApiPay \u2194 Altegio</h2><p>Интеграция подключена. Можно вернуться в Altegio.</p>"
+    );
+  });
+
+  // Altegio дёргает этот адрес при отключении интеграции (Callback Url).
+  app.all("/altegio/uninstall", async (req, reply) => {
+    req.log.warn({ query: req.query }, "altegio: интеграция отключена");
+    return reply.code(200).send({ ok: true });
+  });
+
   // Altegio проверяет адрес GET-запросом перед сохранением настройки.
   app.get("/webhooks/altegio", async () => ({ ok: true, endpoint: "altegio" }));
 
