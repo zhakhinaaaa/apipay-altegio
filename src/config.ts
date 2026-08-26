@@ -17,8 +17,9 @@ export const config = {
 
   altegio: {
     baseUrl: optional("ALTEGIO_BASE_URL") || "https://api.alteg.io/api/v1",
+    partnerId: optional("ALTEGIO_PARTNER_ID"),
     partnerToken: optional("ALTEGIO_PARTNER_TOKEN"),
     userToken: optional("ALTEGIO_USER_TOKEN"),
-    locationId: optional("ALTEGIO_LOCATION_ID"),
+    companyId: optional("ALTEGIO_COMPANY_ID"),
   },
 };

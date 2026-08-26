@@ -12,7 +12,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS bookings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     altegio_record_id TEXT NOT NULL UNIQUE,
-    altegio_location_id TEXT NOT NULL,
+    altegio_company_id TEXT NOT NULL,
     apipay_invoice_id TEXT UNIQUE,
     phone TEXT NOT NULL,
     amount INTEGER NOT NULL,
