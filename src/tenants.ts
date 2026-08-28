@@ -24,6 +24,13 @@ export function findByCompanyId(companyId: string | number): Tenant | undefined 
     .get(String(companyId)) as Tenant | undefined;
 }
 
+/** Салон по company_id независимо от того, обслуживается он сейчас или нет. */
+export function findAnyByCompanyId(companyId: string | number): Tenant | undefined {
+  return db
+    .prepare("SELECT * FROM tenants WHERE altegio_company_id = ?")
+    .get(String(companyId)) as Tenant | undefined;
+}
+
 export function findById(id: number): Tenant | undefined {
   return db.prepare("SELECT * FROM tenants WHERE id = ?").get(id) as Tenant | undefined;
 }
@@ -121,7 +128,9 @@ export function seedFromEnv(): Tenant | undefined {
   if (!altegio.companyId || !altegio.userToken || !apipay.apiKey || !apipay.webhookSecret) {
     return undefined;
   }
-  if (findByCompanyId(altegio.companyId)) return undefined;
+  // Именно findAny: отключённый салон повторно заводить нельзя, иначе каждый
+  // перезапуск возвращал бы в обслуживание того, кто удалил приложение.
+  if (findAnyByCompanyId(altegio.companyId)) return undefined;
 
   return upsert({
     altegioCompanyId: String(altegio.companyId),

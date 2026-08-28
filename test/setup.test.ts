@@ -104,4 +104,9 @@ test("отключение приложения выводит салон из �
   assert.equal(tenants.deactivate("1000011"), true);
   assert.equal(tenants.findByCompanyId("1000011"), undefined);
   assert.equal(tenants.deactivate("1000011"), false);
+
+  // Выключенный салон всё ещё в таблице — иначе seedFromEnv завёл бы его снова.
+  assert.equal(tenants.findAnyByCompanyId("1000011")?.active, 0);
+  assert.equal(tenants.activate("1000011"), true);
+  assert.ok(tenants.findByCompanyId("1000011"));
 });
