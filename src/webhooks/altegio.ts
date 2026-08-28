@@ -42,6 +42,17 @@ function describeParams(source: unknown): Record<string, string> | undefined {
   return out;
 }
 
+/** Состав `user_data` из редиректа Altegio: имена полей видны, значения — нет. */
+function describeUserData(query: unknown): Record<string, string> | string | undefined {
+  const raw = (query as Record<string, unknown> | undefined)?.user_data;
+  if (typeof raw !== "string" || !raw) return undefined;
+  try {
+    return describeParams(JSON.parse(raw));
+  } catch {
+    return `<не JSON, ${raw.length} символов>`;
+  }
+}
+
 /** true — событие новое, false — уже обрабатывали. */
 function claimEvent(dedupeKey: string): boolean {
   const result = db
@@ -63,6 +74,10 @@ export const altegioWebhookRoutes: FastifyPluginAsync = async (app: FastifyInsta
         companyId: companyId ?? null,
         query: describeParams(req.query),
         body: describeParams(req.body),
+        // Altegio кладёт сюда данные подключившего салона одной строкой.
+        // Разбираем, чтобы увидеть состав полей: вдруг там есть токен, под
+        // которым можно читать кассы. Значения по-прежнему маскируются.
+        userData: describeUserData(req.query),
       },
       "altegio: установка приложения в филиал"
     );
