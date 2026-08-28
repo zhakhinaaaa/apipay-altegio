@@ -68,20 +68,22 @@ npm install
   салонов, и выбирается тот, чей секрет даёт совпадение. Тело запроса ни на что
   не влияет до проверки подписи.
 
-Управление салонами — командой на сервере (не через веб, чтобы ключи не ходили
-через публичный адрес):
+Управление салонами — командой (не через веб, чтобы ключи не ходили через
+публичный адрес). На сервере, из папки проекта:
 
 ```bash
-npm run tenant -- list
+docker compose exec app node dist/tenant-cli.js list
 ```
 
 ```bash
-npm run tenant -- add --company 1354369 --user-token <token> --account 2747575 --apipay-key <key> --apipay-secret <secret> --title "Салон"
+docker compose exec app node dist/tenant-cli.js add --company 1354369 --user-token <token> --account 2747575 --apipay-key <key> --apipay-secret <secret> --title "Салон"
 ```
 
 ```bash
-npm run tenant -- disable --company 1354369
+docker compose exec app node dist/tenant-cli.js disable --company 1354369
 ```
+
+Локально при разработке то же самое через `npm run tenant -- list`.
 
 Повторный `add` с тем же `--company` обновляет существующий салон, а не заводит второй.
 

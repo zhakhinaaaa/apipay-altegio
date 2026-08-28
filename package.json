@@ -10,7 +10,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
-    "tenant": "tsx scripts/tenant.ts"
+    "tenant": "tsx src/tenant-cli.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

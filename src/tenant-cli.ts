@@ -1,15 +1,19 @@
 /**
  * Управление подключёнными салонами.
  *
- *   npm run tenant -- list
- *   npm run tenant -- add --company 1354369 --user-token ... --account 2747575 \
- *                         --apipay-key ... --apipay-secret ... [--expense 5] [--title "Салон"]
- *   npm run tenant -- disable --company 1354369
+ * На сервере (внутри контейнера):
+ *   docker compose exec app node dist/tenant-cli.js list
+ *   docker compose exec app node dist/tenant-cli.js add --company 1354369 \
+ *       --user-token ... --account 2747575 --apipay-key ... --apipay-secret ...
+ *   docker compose exec app node dist/tenant-cli.js disable --company 1354369
  *
- * Секреты передаются аргументами, поэтому запускать только на сервере.
+ * Локально при разработке: npm run tenant -- list
+ *
+ * Секреты передаются аргументами, поэтому запускать только на своей машине
+ * или на сервере — не в общих логах CI.
  */
-import { db } from "../src/db";
-import * as tenants from "../src/tenants";
+import { db } from "./db";
+import * as tenants from "./tenants";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -20,7 +24,7 @@ function mask(secret: string): string {
   return secret.length <= 4 ? "****" : `****${secret.slice(-4)}`;
 }
 
-function require_(name: string): string {
+function required(name: string): string {
   const value = arg(name);
   if (!value) {
     console.error(`Не хватает --${name}`);
@@ -33,7 +37,10 @@ const command = process.argv[2];
 
 switch (command) {
   case "list": {
-    const rows = db.prepare("SELECT * FROM tenants ORDER BY id").all() as tenants.Tenant[];
+    const rows = db
+      .prepare("SELECT * FROM tenants ORDER BY id")
+      .all() as unknown as tenants.Tenant[];
+
     if (rows.length === 0) {
       console.log("Салонов пока нет.");
       break;
@@ -58,12 +65,12 @@ switch (command) {
 
   case "add": {
     const tenant = tenants.upsert({
-      altegioCompanyId: require_("company"),
-      altegioUserToken: require_("user-token"),
-      altegioAccountId: require_("account"),
+      altegioCompanyId: required("company"),
+      altegioUserToken: required("user-token"),
+      altegioAccountId: required("account"),
       altegioExpenseId: Number(arg("expense") ?? 5),
-      apipayApiKey: require_("apipay-key"),
-      apipayWebhookSecret: require_("apipay-secret"),
+      apipayApiKey: required("apipay-key"),
+      apipayWebhookSecret: required("apipay-secret"),
       title: arg("title"),
     });
     console.log(`Готово: салон #${tenant.id}, Altegio company ${tenant.altegio_company_id}`);
@@ -71,11 +78,15 @@ switch (command) {
   }
 
   case "disable": {
-    const companyId = require_("company");
+    const companyId = required("company");
     const res = db
-      .prepare("UPDATE tenants SET active = 0, updated_at = datetime('now') WHERE altegio_company_id = ?")
+      .prepare(
+        "UPDATE tenants SET active = 0, updated_at = datetime('now') WHERE altegio_company_id = ?"
+      )
       .run(companyId);
-    console.log(Number(res.changes) ? `Салон ${companyId} выключен.` : `Салон ${companyId} не найден.`);
+    console.log(
+      Number(res.changes) ? `Салон ${companyId} выключен.` : `Салон ${companyId} не найден.`
+    );
     break;
   }
 
