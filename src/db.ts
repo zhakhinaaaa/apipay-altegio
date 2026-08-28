@@ -47,6 +47,17 @@ db.exec(`
     last_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  -- Одноразовые ссылки на страницу настройки. Выдаются в момент, когда салон
+  -- подключает приложение в Altegio, и живут сутки: адрес /setup публичный,
+  -- поэтому знать один только company_id для настройки салона недостаточно.
+  CREATE TABLE IF NOT EXISTS setup_sessions (
+    token TEXT PRIMARY KEY,
+    altegio_company_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    completed_at TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS processed_webhooks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source TEXT NOT NULL,

@@ -32,10 +32,13 @@ export class AltegioError extends Error {
 
 /**
  * Partner token принадлежит приложению и общий для всех салонов,
- * user token — свой у каждого салона, поэтому берётся из арендатора.
+ * user token — системный пользователь приложения в конкретном филиале.
+ *
+ * Отдельно от `request`, потому что на странице настройки салона ещё нет
+ * в таблице: там ходить в API нужно до того, как арендатор создан.
  */
-async function request<T>(
-  tenant: Tenant,
+async function call<T>(
+  userToken: string,
   method: string,
   path: string,
   body?: unknown
@@ -45,7 +48,7 @@ async function request<T>(
     headers: {
       Accept: "application/vnd.api.v2+json",
       "Content-Type": "application/json",
-      Authorization: `Bearer ${config.altegio.partnerToken}, User ${tenant.altegio_user_token}`,
+      Authorization: `Bearer ${config.altegio.partnerToken}, User ${userToken}`,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -66,6 +69,48 @@ async function request<T>(
   }
 
   return (parsed?.data ?? parsed) as T;
+}
+
+/** То же самое, но под токеном уже подключённого салона. */
+async function request<T>(
+  tenant: Tenant,
+  method: string,
+  path: string,
+  body?: unknown
+): Promise<T> {
+  return call<T>(tenant.altegio_user_token, method, path, body);
+}
+
+export interface AltegioAccount {
+  id: number;
+  title: string;
+  is_cash?: number;
+}
+
+/**
+ * Кассы филиала. Заодно проверка доступа: если приложение не подключено
+ * к этому филиалу, Altegio ответит ошибкой прав.
+ */
+export async function listAccounts(
+  userToken: string,
+  companyId: string | number
+): Promise<AltegioAccount[]> {
+  const data = await call<AltegioAccount[]>(userToken, "GET", `/accounts/${companyId}`);
+  return Array.isArray(data) ? data : [];
+}
+
+/** Название филиала — им подписываем салон в списке подключённых. */
+export async function getCompanyTitle(
+  userToken: string,
+  companyId: string | number
+): Promise<string | undefined> {
+  try {
+    const data = await call<{ title?: string }>(userToken, "GET", `/company/${companyId}`);
+    return data?.title;
+  } catch {
+    // Название необязательно — без него салон просто останется без подписи.
+    return undefined;
+  }
 }
 
 export async function getRecord(

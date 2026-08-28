@@ -3,6 +3,7 @@ import { db } from "../db";
 import { BookingError, createInvoiceForRecord } from "../booking";
 import * as tenants from "../tenants";
 import type { Tenant } from "../tenants";
+import { createSession, extractCompanyId } from "../setup";
 
 interface AltegioEvent {
   company_id?: number;
@@ -51,27 +52,37 @@ function claimEvent(dedupeKey: string): boolean {
 
 export const altegioWebhookRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // Altegio ведёт сюда после согласия на подключение приложения к филиалу
-  // (Registration Redirect Url). Достаточно ответить 200 — установка завершится.
-  // Параметры логируем: по ним заводится новый салон в таблице tenants.
+  // (Registration Redirect Url). Отсюда салон уходит на страницу настройки:
+  // одноразовая ссылка выдаётся только тому, кто прямо сейчас подключил приложение.
   app.all("/altegio/install", async (req, reply) => {
+    const companyId = extractCompanyId(req.query, req.body);
+
     req.log.info(
       {
         method: req.method,
+        companyId: companyId ?? null,
         query: describeParams(req.query),
         body: describeParams(req.body),
       },
       "altegio: установка приложения в филиал"
     );
-    return reply.type("text/html").send(
-      "<h2>ApiPay ↔ Altegio</h2><p>Интеграция подключена. Можно вернуться в Altegio.</p>"
-    );
+
+    const session = createSession(companyId);
+    // Адрес относительный: работает и без заданного PUBLIC_BASE_URL.
+    return reply.redirect(302, `/setup/${session.token}`);
   });
 
   // Altegio дёргает этот адрес при отключении интеграции (Callback Url).
+  // Салон отключился — перестаём обслуживать его записи.
   app.all("/altegio/uninstall", async (req, reply) => {
+    const companyId = extractCompanyId(req.query, req.body);
+    const deactivated = companyId ? tenants.deactivate(companyId) : false;
+
     req.log.warn(
       {
         method: req.method,
+        companyId: companyId ?? null,
+        deactivated,
         query: describeParams(req.query),
         body: describeParams(req.body),
       },

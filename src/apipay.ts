@@ -83,6 +83,23 @@ export function normalizePhone(raw: string): string | null {
   return null;
 }
 
+/**
+ * Проверка ключа салона на странице настройки: арендатора ещё нет, поэтому
+ * идём в ApiPay напрямую. Ответ 401/403 — ключ не тот; всё остальное (включая
+ * недоступность ApiPay) считаем «проверить не удалось» и настройку не блокируем.
+ */
+export async function checkApiKey(apiKey: string): Promise<"ok" | "invalid" | "unknown"> {
+  try {
+    const res = await fetch(`${config.apipay.baseUrl}/invoices?per_page=1`, {
+      headers: { "X-API-Key": apiKey, Accept: "application/json" },
+    });
+    if (res.status === 401 || res.status === 403) return "invalid";
+    return res.ok ? "ok" : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 export interface CreateInvoiceInput {
   phoneNumber: string;
   amount: number;

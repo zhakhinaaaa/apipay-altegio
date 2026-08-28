@@ -86,6 +86,16 @@ export function upsert(input: TenantInput): Tenant {
   return findByCompanyId(input.altegioCompanyId)!;
 }
 
+/** Салон отключил приложение в Altegio — перестаём его обслуживать. */
+export function deactivate(companyId: string | number): boolean {
+  const res = db
+    .prepare(
+      "UPDATE tenants SET active = 0, updated_at = datetime('now') WHERE altegio_company_id = ? AND active = 1"
+    )
+    .run(String(companyId));
+  return Number(res.changes) > 0;
+}
+
 /**
  * Первый запуск после перехода на мультиарендность: если в .env заданы значения
  * старой одно-салонной конфигурации, заводим из них арендатора. Уже существующую

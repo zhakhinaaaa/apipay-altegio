@@ -4,6 +4,7 @@ import { db } from "./db";
 import { apipayWebhookRoutes } from "./webhooks/apipay";
 import { altegioWebhookRoutes } from "./webhooks/altegio";
 import { BookingError, createInvoiceForRecord } from "./booking";
+import { setupRoutes, purgeExpiredSessions } from "./setup";
 import * as tenants from "./tenants";
 
 const app = Fastify({
@@ -24,6 +25,20 @@ const app = Fastify({
   },
 });
 
+// Формы страницы настройки и часть коллбэков Altegio приходят не в JSON.
+// Парсер на корневом экземпляре наследуют все плагины.
+app.addContentTypeParser(
+  "application/x-www-form-urlencoded",
+  { parseAs: "string" },
+  (_req, body, done) => {
+    try {
+      done(null, Object.fromEntries(new URLSearchParams(body as string)));
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  }
+);
+
 app.get("/health", async () => {
   const dbOk = db.prepare("SELECT 1").get() !== undefined;
   return { status: "ok", db: dbOk, tenants: tenants.listActive().length };
@@ -31,6 +46,7 @@ app.get("/health", async () => {
 
 app.register(apipayWebhookRoutes);
 app.register(altegioWebhookRoutes);
+app.register(setupRoutes);
 
 // Ручной запуск сценария без вебхука Altegio — для отладки и демо.
 // Адрес публичный, поэтому закрыт токеном: без DEV_ENDPOINTS_TOKEN он выключен.
@@ -81,6 +97,10 @@ if (seeded) {
     { companyId: seeded.altegio_company_id },
     "tenants: салон импортирован из .env"
   );
+}
+const purged = purgeExpiredSessions();
+if (purged > 0) {
+  app.log.info({ count: purged }, "setup: просроченные ссылки на настройку удалены");
 }
 const backfilled = tenants.backfillBookings();
 if (backfilled > 0) {
