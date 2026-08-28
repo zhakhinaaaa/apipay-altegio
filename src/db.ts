@@ -37,6 +37,16 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  -- Салоны, которые подключили приложение в Altegio, но ещё не настроены у нас
+  -- (не заведены в tenants). Нужны, чтобы онбординг не терялся в логах.
+  CREATE TABLE IF NOT EXISTS pending_salons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    altegio_company_id TEXT NOT NULL UNIQUE,
+    events_count INTEGER NOT NULL DEFAULT 0,
+    first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS processed_webhooks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source TEXT NOT NULL,

@@ -74,6 +74,33 @@ test("чужая или отсутствующая подпись не даёт 
   assert.equal(tenants.findByApipaySignature(raw, undefined), undefined);
 });
 
+test("незнакомый салон попадает в список ожидающих и считает события", () => {
+  tenants.notePendingSalon("7777777");
+  tenants.notePendingSalon("7777777");
+
+  const pending = tenants.listPendingSalons().find((s) => s.altegio_company_id === "7777777");
+  assert.ok(pending, "салон должен попасть в ожидающие");
+  assert.equal(pending.events_count, 2);
+});
+
+test("после настройки салон уходит из списка ожидающих", () => {
+  tenants.notePendingSalon("8888888");
+  assert.ok(tenants.listPendingSalons().some((s) => s.altegio_company_id === "8888888"));
+
+  tenants.upsert({
+    altegioCompanyId: "8888888",
+    altegioUserToken: "t",
+    altegioAccountId: "1",
+    apipayApiKey: "k",
+    apipayWebhookSecret: "s",
+  });
+
+  assert.equal(
+    tenants.listPendingSalons().some((s) => s.altegio_company_id === "8888888"),
+    false
+  );
+});
+
 test("подпись от другого тела запроса не проходит", () => {
   const real = Buffer.from('{"invoice":{"id":1,"status":"paid"}}');
   const forged = '{"invoice":{"id":1,"status":"cancelled"}}';

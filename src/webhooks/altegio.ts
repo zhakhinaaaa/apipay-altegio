@@ -105,9 +105,12 @@ export const altegioWebhookRoutes: FastifyPluginAsync = async (app: FastifyInsta
 
       const tenant = tenants.findByCompanyId(companyId);
       if (!tenant) {
+        // Салон поставил приложение, но у нас не настроен — запоминаем,
+        // чтобы его было видно в списке ожидающих подключения.
+        tenants.notePendingSalon(companyId);
         req.log.warn(
           { recordId, companyId },
-          "altegio webhook: салон не подключён — событие пропущено"
+          "altegio webhook: салон не настроен — событие пропущено, салон записан в ожидающие"
         );
         continue;
       }

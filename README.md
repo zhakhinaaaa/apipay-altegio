@@ -83,6 +83,13 @@ docker compose exec app node dist/tenant-cli.js add --company 1354369 --user-tok
 docker compose exec app node dist/tenant-cli.js disable --company 1354369
 ```
 
+Если салон поставил приложение в Altegio, но у нас ещё не настроен, его события
+пропускаются, а сам салон попадает в список ожидающих:
+
+```bash
+docker compose exec app node dist/tenant-cli.js pending
+```
+
 Локально при разработке то же самое через `npm run tenant -- list`.
 
 Повторный `add` с тем же `--company` обновляет существующий салон, а не заводит второй.

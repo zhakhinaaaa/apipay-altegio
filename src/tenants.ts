@@ -82,6 +82,7 @@ export function upsert(input: TenantInput): Tenant {
     input.title ?? null
   );
 
+  clearPendingSalon(input.altegioCompanyId);
   return findByCompanyId(input.altegioCompanyId)!;
 }
 
@@ -106,6 +107,39 @@ export function seedFromEnv(): Tenant | undefined {
     apipayWebhookSecret: apipay.webhookSecret,
     title: "Импортирован из .env",
   });
+}
+
+export interface PendingSalon {
+  id: number;
+  altegio_company_id: string;
+  events_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+/**
+ * Салон прислал событие, но у нас не настроен. Запоминаем его, чтобы было видно,
+ * кого нужно подключить — иначе такой салон теряется в логах.
+ */
+export function notePendingSalon(companyId: string | number): void {
+  db.prepare(
+    `INSERT INTO pending_salons (altegio_company_id, events_count)
+     VALUES (?, 1)
+     ON CONFLICT(altegio_company_id) DO UPDATE SET
+       events_count = pending_salons.events_count + 1,
+       last_seen_at = datetime('now')`
+  ).run(String(companyId));
+}
+
+export function listPendingSalons(): PendingSalon[] {
+  return db
+    .prepare("SELECT * FROM pending_salons ORDER BY last_seen_at DESC")
+    .all() as unknown as PendingSalon[];
+}
+
+/** Салон настроен — из списка ожидающих убираем. */
+export function clearPendingSalon(companyId: string | number): void {
+  db.prepare("DELETE FROM pending_salons WHERE altegio_company_id = ?").run(String(companyId));
 }
 
 /** Проставляет tenant_id записям, заведённым до перехода на мультиарендность. */

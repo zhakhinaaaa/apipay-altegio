@@ -63,6 +63,22 @@ switch (command) {
     break;
   }
 
+  case "pending": {
+    const rows = tenants.listPendingSalons();
+    if (rows.length === 0) {
+      console.log("Салонов, ожидающих настройки, нет.");
+      break;
+    }
+    console.log("Поставили приложение в Altegio, но у нас не настроены:");
+    for (const s of rows) {
+      console.log(
+        `  Altegio company ${s.altegio_company_id} | событий: ${s.events_count} | впервые: ${s.first_seen_at} | последнее: ${s.last_seen_at}`
+      );
+    }
+    console.log("\nЧтобы подключить: add --company <id> --user-token ... --account ... --apipay-key ... --apipay-secret ...");
+    break;
+  }
+
   case "add": {
     const tenant = tenants.upsert({
       altegioCompanyId: required("company"),
@@ -91,5 +107,5 @@ switch (command) {
   }
 
   default:
-    console.log("Команды: list | add | disable  (см. комментарий в начале файла)");
+    console.log("Команды: list | pending | add | disable  (см. комментарий в начале файла)");
 }
