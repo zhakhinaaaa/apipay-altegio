@@ -8,6 +8,8 @@ export const config = {
   port: Number(process.env.PORT ?? 3000),
   dbPath: optional("DB_PATH") || "./data/app.sqlite",
   publicBaseUrl: optional("PUBLIC_BASE_URL"),
+  // Пока пусто — служебные /dev-адреса выключены.
+  devEndpointsToken: optional("DEV_ENDPOINTS_TOKEN"),
 
   apipay: {
     baseUrl: optional("APIPAY_BASE_URL") || "https://api.apipay.kz/api/v1",

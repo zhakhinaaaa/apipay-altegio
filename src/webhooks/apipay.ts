@@ -1,8 +1,10 @@
-import crypto from "node:crypto";
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
-import { config } from "../config";
 import { db } from "../db";
 import { findByInvoiceId, markPrepaymentInAltegio } from "../booking";
+import * as tenants from "../tenants";
+import type { Tenant } from "../tenants";
+
+export { verifySignature } from "../signature";
 
 const SIGNATURE_HEADER = "x-webhook-signature";
 
@@ -27,30 +29,11 @@ declare module "fastify" {
   }
 }
 
-/**
- * Подпись считается HMAC-SHA256 от СЫРОГО тела запроса.
- * Пересериализованный JSON не подойдёт — порядок ключей и пробелы изменятся.
- */
-export function verifySignature(raw: Buffer, header: string | undefined, secret: string): boolean {
-  if (!header || !secret) return false;
-
-  const expected =
-    "sha256=" + crypto.createHmac("sha256", secret).update(raw).digest("hex");
-
-  const a = Buffer.from(expected);
-  const b = Buffer.from(header);
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
-
-const markProcessed = () =>
-  db.prepare(
-    "INSERT OR IGNORE INTO processed_webhooks (source, dedupe_key) VALUES (?, ?)"
-  );
-
 /** true — событие новое, false — такое уже обрабатывали. */
 function claimEvent(source: string, dedupeKey: string): boolean {
-  const result = markProcessed().run(source, dedupeKey);
+  const result = db
+    .prepare("INSERT OR IGNORE INTO processed_webhooks (source, dedupe_key) VALUES (?, ?)")
+    .run(source, dedupeKey);
   return Number(result.changes) > 0;
 }
 
@@ -77,7 +60,10 @@ export const apipayWebhookRoutes: FastifyPluginAsync = async (app: FastifyInstan
     const raw = req.rawBody ?? Buffer.alloc(0);
     const signature = req.headers[SIGNATURE_HEADER] as string | undefined;
 
-    if (!verifySignature(raw, signature, config.apipay.webhookSecret)) {
+    // Салон определяем ПО ПОДПИСИ, а не по телу запроса: перебираем секреты
+    // подключённых салонов. Так тело не влияет ни на что до проверки подписи.
+    const tenant = tenants.findByApipaySignature(raw, signature);
+    if (!tenant) {
       req.log.warn({ hasSignature: Boolean(signature) }, "apipay webhook: bad signature");
       return reply.code(401).send({ error: "invalid_signature" });
     }
@@ -87,7 +73,7 @@ export const apipayWebhookRoutes: FastifyPluginAsync = async (app: FastifyInstan
     const status = body.invoice?.status;
 
     if (body.event === "webhook.test") {
-      req.log.info("apipay webhook: test event accepted");
+      req.log.info({ companyId: tenant.altegio_company_id }, "apipay webhook: test event accepted");
       return reply.code(200).send({ ok: true });
     }
 
@@ -96,26 +82,40 @@ export const apipayWebhookRoutes: FastifyPluginAsync = async (app: FastifyInstan
       return reply.code(200).send({ ok: true, ignored: true });
     }
 
-    // Дедуп по (invoice.id, status) — ApiPay ретраит одно событие до 11 раз.
-    const dedupeKey = `invoice:${invoiceId}:${status}`;
+    // Дедуп по (арендатор, invoice.id, status) — ApiPay ретраит одно событие до 11 раз.
+    const dedupeKey = `invoice:${tenant.id}:${invoiceId}:${status}`;
     if (!claimEvent("apipay", dedupeKey)) {
       req.log.info({ invoiceId, status }, "apipay webhook: duplicate, skipped");
       return reply.code(200).send({ ok: true, duplicate: true });
     }
 
     // Отвечаем быстро (лимит ApiPay — 5 секунд), работу делаем после ответа.
-    setImmediate(() => void handleStatusChange(app, String(invoiceId), status));
+    setImmediate(() => void handleStatusChange(app, tenant, String(invoiceId), status));
 
     return reply.code(200).send({ ok: true });
   });
 };
 
-async function handleStatusChange(app: FastifyInstance, invoiceId: string, status: string) {
+async function handleStatusChange(
+  app: FastifyInstance,
+  tenant: Tenant,
+  invoiceId: string,
+  status: string
+) {
   try {
     const booking = findByInvoiceId(invoiceId);
 
     if (!booking) {
       app.log.warn({ invoiceId, status }, "apipay webhook: no booking linked to invoice");
+      return;
+    }
+
+    // Счёт должен принадлежать тому же салону, чьей подписью подписан вебхук.
+    if (booking.tenant_id && booking.tenant_id !== tenant.id) {
+      app.log.warn(
+        { invoiceId, bookingTenant: booking.tenant_id, signedBy: tenant.id },
+        "apipay webhook: счёт принадлежит другому салону — пропущено"
+      );
       return;
     }
 

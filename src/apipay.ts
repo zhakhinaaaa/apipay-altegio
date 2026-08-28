@@ -1,4 +1,5 @@
 import { config } from "./config";
+import type { Tenant } from "./tenants";
 
 export type InvoiceStatus =
   | "processing"
@@ -26,7 +27,9 @@ export class ApiPayError extends Error {
   }
 }
 
+/** Ключ ApiPay свой у каждого арендатора — берём из его строки в таблице. */
 async function request<T>(
+  tenant: Tenant,
   method: string,
   path: string,
   body?: unknown
@@ -34,7 +37,7 @@ async function request<T>(
   const res = await fetch(`${config.apipay.baseUrl}${path}`, {
     method,
     headers: {
-      "X-API-Key": config.apipay.apiKey,
+      "X-API-Key": tenant.apipay_api_key,
       "Content-Type": "application/json",
       Accept: "application/json",
     },
@@ -88,8 +91,11 @@ export interface CreateInvoiceInput {
   idempotencyKey: string;
 }
 
-export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice> {
-  const payload = await request<unknown>("POST", "/invoices", {
+export async function createInvoice(
+  tenant: Tenant,
+  input: CreateInvoiceInput
+): Promise<Invoice> {
+  const payload = await request<unknown>(tenant, "POST", "/invoices", {
     phone_number: input.phoneNumber,
     amount: input.amount,
     description: input.description?.slice(0, 500),
@@ -98,16 +104,17 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
   return unwrap<Invoice>(payload);
 }
 
-export async function getInvoice(id: string | number): Promise<Invoice> {
-  return unwrap<Invoice>(await request<unknown>("GET", `/invoices/${id}`));
+export async function getInvoice(tenant: Tenant, id: string | number): Promise<Invoice> {
+  return unwrap<Invoice>(await request<unknown>(tenant, "GET", `/invoices/${id}`));
 }
 
 /** Только песочница: на боевом счёте вернёт 403 not_sandbox. */
 export async function simulateStatus(
+  tenant: Tenant,
   id: string | number,
   status: "paid" | "cancelled" | "expired" | "error" | "qr_scanned"
 ): Promise<Invoice> {
   return unwrap<Invoice>(
-    await request<unknown>("POST", `/invoices/${id}/simulate-status`, { status })
+    await request<unknown>(tenant, "POST", `/invoices/${id}/simulate-status`, { status })
   );
 }

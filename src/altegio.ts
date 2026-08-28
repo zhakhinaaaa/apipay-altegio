@@ -1,4 +1,5 @@
 import { config } from "./config";
+import type { Tenant } from "./tenants";
 
 export interface AltegioService {
   id: number;
@@ -29,13 +30,22 @@ export class AltegioError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+/**
+ * Partner token принадлежит приложению и общий для всех салонов,
+ * user token — свой у каждого салона, поэтому берётся из арендатора.
+ */
+async function request<T>(
+  tenant: Tenant,
+  method: string,
+  path: string,
+  body?: unknown
+): Promise<T> {
   const res = await fetch(`${config.altegio.baseUrl}${path}`, {
     method,
     headers: {
       Accept: "application/vnd.api.v2+json",
       "Content-Type": "application/json",
-      Authorization: `Bearer ${config.altegio.partnerToken}, User ${config.altegio.userToken}`,
+      Authorization: `Bearer ${config.altegio.partnerToken}, User ${tenant.altegio_user_token}`,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -58,8 +68,15 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return (parsed?.data ?? parsed) as T;
 }
 
-export async function getRecord(recordId: string | number): Promise<AltegioRecord> {
-  return request<AltegioRecord>("GET", `/record/${config.altegio.companyId}/${recordId}`);
+export async function getRecord(
+  tenant: Tenant,
+  recordId: string | number
+): Promise<AltegioRecord> {
+  return request<AltegioRecord>(
+    tenant,
+    "GET",
+    `/record/${tenant.altegio_company_id}/${recordId}`
+  );
 }
 
 /** Сумма к оплате по записи — сумма cost_to_pay всех услуг. */
@@ -97,18 +114,20 @@ export interface FinanceTransaction {
  * expense_id = 5 (Service payments, тип 7 — приход), сумма положительная.
  */
 export async function createPrepaymentTransaction(params: {
+  tenant: Tenant;
   record: AltegioRecord;
   amount: number;
   comment: string;
 }): Promise<FinanceTransaction> {
-  const { record, amount, comment } = params;
+  const { tenant, record, amount, comment } = params;
 
   return request<FinanceTransaction>(
+    tenant,
     "POST",
-    `/finance_transactions/${config.altegio.companyId}`,
+    `/finance_transactions/${tenant.altegio_company_id}`,
     {
-      account_id: Number(config.altegio.accountId),
-      expense_id: config.altegio.expenseId,
+      account_id: Number(tenant.altegio_account_id),
+      expense_id: tenant.altegio_expense_id,
       amount,
       date: formatDate(new Date()),
       document_id: recordDocumentId(record) ?? 0,

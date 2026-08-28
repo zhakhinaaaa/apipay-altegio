@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import { db } from "../db";
 import { BookingError, createInvoiceForRecord } from "../booking";
+import * as tenants from "../tenants";
+import type { Tenant } from "../tenants";
 
 interface AltegioEvent {
   company_id?: number;
@@ -21,10 +23,11 @@ function claimEvent(dedupeKey: string): boolean {
 export const altegioWebhookRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // Altegio ведёт сюда после согласия на подключение приложения к филиалу
   // (Registration Redirect Url). Достаточно ответить 200 — установка завершится.
+  // Параметры логируем: по ним заводится новый салон в таблице tenants.
   app.get("/altegio/install", async (req, reply) => {
     req.log.info({ query: req.query }, "altegio: установка приложения в филиал");
     return reply.type("text/html").send(
-      "<h2>ApiPay \u2194 Altegio</h2><p>Интеграция подключена. Можно вернуться в Altegio.</p>"
+      "<h2>ApiPay ↔ Altegio</h2><p>Интеграция подключена. Можно вернуться в Altegio.</p>"
     );
   });
 
@@ -49,24 +52,46 @@ export const altegioWebhookRoutes: FastifyPluginAsync = async (app: FastifyInsta
       const recordId = String(event.resource_id ?? event.data?.id ?? "");
       if (!recordId) continue;
 
-      const dedupeKey = `record:${recordId}:${event.status}`;
+      // Салон определяем по company_id из события — так один адрес вебхука
+      // обслуживает сколько угодно подключённых салонов.
+      const companyId = event.company_id;
+      if (!companyId) {
+        req.log.warn({ recordId }, "altegio webhook: в событии нет company_id");
+        continue;
+      }
+
+      const tenant = tenants.findByCompanyId(companyId);
+      if (!tenant) {
+        req.log.warn(
+          { recordId, companyId },
+          "altegio webhook: салон не подключён — событие пропущено"
+        );
+        continue;
+      }
+
+      const dedupeKey = `record:${companyId}:${recordId}:${event.status}`;
       if (!claimEvent(dedupeKey)) {
         req.log.info({ recordId, status: event.status }, "altegio webhook: duplicate, skipped");
         continue;
       }
 
-      setImmediate(() => void handleRecord(app, recordId));
+      setImmediate(() => void handleRecord(app, tenant, recordId));
     }
 
     return reply.code(200).send({ ok: true });
   });
 };
 
-async function handleRecord(app: FastifyInstance, recordId: string) {
+async function handleRecord(app: FastifyInstance, tenant: Tenant, recordId: string) {
   try {
-    const { booking, created } = await createInvoiceForRecord(recordId);
+    const { booking, created } = await createInvoiceForRecord(tenant, recordId);
     app.log.info(
-      { recordId, invoiceId: booking.apipay_invoice_id, created },
+      {
+        recordId,
+        companyId: tenant.altegio_company_id,
+        invoiceId: booking.apipay_invoice_id,
+        created,
+      },
       created ? "altegio webhook: invoice created" : "altegio webhook: invoice already exists"
     );
   } catch (err) {
