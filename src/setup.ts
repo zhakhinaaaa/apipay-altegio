@@ -306,11 +306,12 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       return fail("Приложение настроено не полностью. Напишите в поддержку ApiPay.");
     }
 
-    // Доступ к филиалу проверяем через Altegio: чужой company_id не подставишь —
-    // приложение должно быть подключено именно к этому филиалу.
-    if (accountsError) {
+    // Филиал из ссылки назвал сам Altegio — его проверять нечем и незачем.
+    // А вот введённый руками нужно подтвердить обращением к Altegio, иначе
+    // по такой ссылке можно было бы настроить чужой салон.
+    if (!session.altegio_company_id && accountsError) {
       return fail(
-        `Не удалось обратиться к филиалу ${companyId} в Altegio. Проверьте, что приложение ApiPay подключено к нему, и обновите страницу.`
+        `Не удалось подтвердить филиал ${companyId} в Altegio. Проверьте номер филиала и то, что приложение ApiPay к нему подключено.`
       );
     }
     if (accounts.length && !accounts.some((a) => String(a.id) === accountId)) {
