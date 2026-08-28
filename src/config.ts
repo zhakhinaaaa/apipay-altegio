@@ -20,6 +20,8 @@ export const config = {
   altegio: {
     baseUrl: optional("ALTEGIO_BASE_URL") || "https://api.alteg.io/api/v1",
     partnerId: optional("ALTEGIO_PARTNER_ID"),
+    // ID приложения в маркетплейсе — нужен, чтобы увести салон обратно в его карточку.
+    appId: optional("ALTEGIO_APP_ID"),
     partnerToken: optional("ALTEGIO_PARTNER_TOKEN"),
     userToken: optional("ALTEGIO_USER_TOKEN"),
     companyId: optional("ALTEGIO_COMPANY_ID"),

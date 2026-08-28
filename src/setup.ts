@@ -350,7 +350,14 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 <p>Салон <b>${esc(title ?? companyId)}</b> подключён. Теперь при новой записи клиенту
 автоматически выставляется счёт на предоплату, а после оплаты приход попадает
 в финансы Altegio.</p>
-<p>Можно вернуться в Altegio и создать запись для проверки.</p>`
+${
+          // Ссылка обратно в карточку приложения — только если знаем её адрес.
+          config.altegio.appId
+            ? `<p><a href="https://app.alteg.io/appstore/${esc(companyId)}/applications/${esc(
+                config.altegio.appId
+              )}/info">Вернуться в Altegio</a> и создать запись для проверки.</p>`
+            : "<p>Можно вернуться в Altegio и создать запись для проверки.</p>"
+        }`
       )
     );
   });

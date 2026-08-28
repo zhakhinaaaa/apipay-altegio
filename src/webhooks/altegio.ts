@@ -42,15 +42,32 @@ function describeParams(source: unknown): Record<string, string> | undefined {
   return out;
 }
 
-/** Состав `user_data` из редиректа Altegio: имена полей видны, значения — нет. */
+/**
+ * Состав `user_data` из редиректа Altegio: имена полей видны, значения — нет.
+ * В каком виде Altegio его кодирует, документации нет, поэтому пробуем
+ * несколько вариантов; если не поддалось — показываем начало строки, по нему
+ * видно кодировку (`eyJ` — base64 от JSON, `%7B` — JSON в URL-кодировке).
+ */
 function describeUserData(query: unknown): Record<string, string> | string | undefined {
   const raw = (query as Record<string, unknown> | undefined)?.user_data;
   if (typeof raw !== "string" || !raw) return undefined;
-  try {
-    return describeParams(JSON.parse(raw));
-  } catch {
-    return `<не JSON, ${raw.length} символов>`;
+
+  const candidates = [
+    () => raw,
+    () => Buffer.from(raw, "base64").toString("utf8"),
+    () => decodeURIComponent(raw),
+    () => Buffer.from(raw, "base64url").toString("utf8"),
+  ];
+
+  for (const decode of candidates) {
+    try {
+      const parsed = JSON.parse(decode());
+      if (parsed && typeof parsed === "object") return describeParams(parsed);
+    } catch {
+      // Следующий вариант.
+    }
   }
+  return `<не разобрано, ${raw.length} символов, начинается с ${raw.slice(0, 12)}>`;
 }
 
 /** true — событие новое, false — уже обрабатывали. */
