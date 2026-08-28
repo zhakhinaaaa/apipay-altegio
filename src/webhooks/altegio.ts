@@ -69,7 +69,7 @@ export const altegioWebhookRoutes: FastifyPluginAsync = async (app: FastifyInsta
 
     const session = createSession(companyId);
     // Адрес относительный: работает и без заданного PUBLIC_BASE_URL.
-    return reply.redirect(302, `/setup/${session.token}`);
+    return reply.redirect(`/setup/${session.token}`, 302);
   });
 
   // Altegio дёргает этот адрес при отключении интеграции (Callback Url).

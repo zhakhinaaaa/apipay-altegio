@@ -107,6 +107,15 @@ function message(title: string, text: string): string {
   return page(title, `<h1>${esc(title)}</h1><p>${esc(text)}</p>`);
 }
 
+/**
+ * Касса по умолчанию: предоплата приходит безналом, поэтому берём безналичную,
+ * а если такой нет — первую из списка. Салон кассу не выбирает: цель страницы —
+ * один-единственный ввод, API-ключ.
+ */
+function defaultAccount(accounts: altegio.AltegioAccount[]): altegio.AltegioAccount | undefined {
+  return accounts.find((a) => !a.is_cash) ?? accounts[0];
+}
+
 interface FormState {
   companyId: string | null;
   accounts: altegio.AltegioAccount[];
@@ -125,20 +134,9 @@ function form(state: FormState): string {
   <input name="company_id" inputmode="numeric" required value="${esc(v.company_id)}">
 </label>`;
 
-  const accountField = state.accounts.length
-    ? `<label>Касса для зачисления предоплаты
-  <div class="hint">Куда записывать приход, когда клиент оплатил счёт</div>
-  <select name="account_id" required>
-${state.accounts
-  .map(
-    (a) =>
-      `    <option value="${esc(a.id)}"${
-        String(a.id) === v.account_id ? " selected" : ""
-      }>${esc(a.title)}</option>`
-  )
-  .join("\n")}
-  </select>
-</label>`
+  const preset = defaultAccount(state.accounts);
+  const accountField = preset
+    ? `<p class="hint">Предоплата будет зачисляться в кассу «${esc(preset.title)}».</p>`
     : `<label>ID кассы Altegio
   <div class="hint">${esc(
     state.accountsError ?? "Список касс получить не удалось — введите ID кассы вручную"
@@ -271,12 +269,15 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const body = req.body ?? {};
     const companyId = session.altegio_company_id ?? String(body.company_id ?? "").trim();
     const apiKey = String(body.apipay_api_key ?? "").trim();
-    const accountId = String(body.account_id ?? "").trim();
 
     const { accounts, accountsError } = await loadAccounts(
       app,
       /^\d+$/.test(companyId) ? companyId : null
     );
+
+    // Кассу выбираем сами; вручную её вводят, только если список касс не пришёл.
+    const accountId =
+      String(defaultAccount(accounts)?.id ?? "") || String(body.account_id ?? "").trim();
 
     const fail = (error: string) =>
       reply
@@ -298,7 +299,7 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     if (!/^\d+$/.test(companyId)) return fail("ID филиала — это число из адреса кабинета Altegio.");
     if (!apiKey) return fail("Укажите API-ключ ApiPay.");
-    if (!/^\d+$/.test(accountId)) return fail("Выберите кассу для зачисления предоплаты.");
+    if (!/^\d+$/.test(accountId)) return fail("Укажите ID кассы для зачисления предоплаты.");
 
     if (!config.altegio.userToken) {
       app.log.error("setup: не задан ALTEGIO_USER_TOKEN — подключить салон невозможно");
@@ -312,8 +313,8 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         `Не удалось обратиться к филиалу ${companyId} в Altegio. Проверьте, что приложение ApiPay подключено к нему, и обновите страницу.`
       );
     }
-    if (!accounts.some((a) => String(a.id) === accountId)) {
-      return fail("Такой кассы в этом филиале нет — выберите из списка.");
+    if (accounts.length && !accounts.some((a) => String(a.id) === accountId)) {
+      return fail("Такой кассы в этом филиале нет.");
     }
 
     const keyCheck = await checkApiKey(apiKey);
