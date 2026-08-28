@@ -76,10 +76,18 @@ ApiPay1 (партнёр 2548).
   оставался в карточке приложения, на наш адрес не приходило ничего. После
   переключения на Public тот же Connect стал вести на
   `GET /altegio/install?salon_id=<company_id>`.
-- В редиректе приходит **только `salon_id`**. Галочка «Pass user data when
-  connecting the integration» ничего не добавляет, галочка «Open registration
-  form in iframe» вкладку Settings в карточке не показывает — форма всё равно
-  открывается отдельной страницей.
+- Обе галочки под Registration Redirect Url работают, но им нужно сохранение
+  **и** новое подключение — на подключениях, сделанных до сохранения, эффекта
+  нет. «Open registration form in iframe» добавляет в карточку приложения
+  вкладку **Settings**, внутри которой открывается наша страница. «Pass user
+  data» добавляет к редиректу `user_data` и `user_data_sign`.
+- `user_data` — base64 от JSON с полями `id`, `name`, `phone`, `email`,
+  `is_approved`, `avatar`, `salon_name`. Это профиль сотрудника, который
+  подключает приложение. **Токена там нет**, доступа к финансам он не даёт.
+  `user_data_sign` — 64 hex-символа, похоже на HMAC-SHA256; проверка подписи
+  не реализована.
+- Вкладка Settings при каждом открытии сначала прогоняет экран согласия
+  Altegio, и только после «Continue» отдаёт управление нашей странице.
 - Отключение приходит на Callback Url: `POST /altegio/uninstall`, тело
   `{salon_id, application_id, event: "uninstall", partner_token}`.
   Обратного события при повторном подключении Altegio **не присылает** —
