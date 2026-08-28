@@ -107,10 +107,6 @@ function message(title: string, text: string): string {
   return page(title, `<h1>${esc(title)}</h1><p>${esc(text)}</p>`);
 }
 
-function apipayWebhookUrl(): string {
-  return `${config.publicBaseUrl.replace(/\/+$/, "")}/webhooks/apipay`;
-}
-
 interface FormState {
   companyId: string | null;
   accounts: altegio.AltegioAccount[];
@@ -153,8 +149,8 @@ ${state.accounts
   return page(
     "Подключение ApiPay",
     `<h1>Подключение ApiPay</h1>
-<p class="sub">Осталось указать реквизиты вашего аккаунта ApiPay — после этого счета
-на предоплату будут выставляться автоматически.</p>
+<p class="sub">Остался один шаг: укажите API-ключ вашего аккаунта ApiPay — после этого
+счета на предоплату будут выставляться автоматически.</p>
 
 ${state.error ? `<div class="error">${esc(state.error)}</div>` : ""}
 
@@ -166,21 +162,10 @@ ${companyField}
   <input name="apipay_api_key" required autocomplete="off" value="${esc(v.apipay_api_key)}">
 </label>
 
-<label>Секрет вебхука ApiPay
-  <div class="hint">ApiPay → настройки вебхука → секретный ключ подписи</div>
-  <input name="apipay_webhook_secret" required autocomplete="off" value="${esc(
-    v.apipay_webhook_secret
-  )}">
-</label>
-
 ${accountField}
 
 <button type="submit">Подключить</button>
-</form>
-
-<div class="box"><b>Не забудьте</b> указать в настройках вебхука ApiPay адрес:<br>
-<code>${esc(apipayWebhookUrl())}</code><br>
-Без него ApiPay не сообщит нам об оплате.</div>`
+</form>`
   );
 }
 
@@ -219,7 +204,6 @@ export function extractCompanyId(...sources: unknown[]): string | undefined {
 interface SetupBody {
   company_id?: string;
   apipay_api_key?: string;
-  apipay_webhook_secret?: string;
   account_id?: string;
 }
 
@@ -273,7 +257,6 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         values: {
           company_id: "",
           apipay_api_key: "",
-          apipay_webhook_secret: "",
           // Уже подключённому салону подставляем его текущую кассу.
           account_id: existing?.altegio_account_id ?? "",
         },
@@ -288,7 +271,6 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const body = req.body ?? {};
     const companyId = session.altegio_company_id ?? String(body.company_id ?? "").trim();
     const apiKey = String(body.apipay_api_key ?? "").trim();
-    const webhookSecret = String(body.apipay_webhook_secret ?? "").trim();
     const accountId = String(body.account_id ?? "").trim();
 
     const { accounts, accountsError } = await loadAccounts(
@@ -308,7 +290,6 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
             values: {
               company_id: companyId,
               apipay_api_key: apiKey,
-              apipay_webhook_secret: webhookSecret,
               account_id: accountId,
             },
             error,
@@ -316,7 +297,7 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         );
 
     if (!/^\d+$/.test(companyId)) return fail("ID филиала — это число из адреса кабинета Altegio.");
-    if (!apiKey || !webhookSecret) return fail("Заполните API-ключ и секрет вебхука ApiPay.");
+    if (!apiKey) return fail("Укажите API-ключ ApiPay.");
     if (!/^\d+$/.test(accountId)) return fail("Выберите кассу для зачисления предоплаты.");
 
     if (!config.altegio.userToken) {
@@ -350,7 +331,6 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       altegioUserToken: config.altegio.userToken,
       altegioAccountId: accountId,
       apipayApiKey: apiKey,
-      apipayWebhookSecret: webhookSecret,
       title,
     });
     completeSession(session.token, companyId);
@@ -367,8 +347,6 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 <p>Салон <b>${esc(title ?? companyId)}</b> подключён. Теперь при новой записи клиенту
 автоматически выставляется счёт на предоплату, а после оплаты приход попадает
 в финансы Altegio.</p>
-<div class="box">Если ещё не сделали: в настройках вебхука ApiPay должен быть адрес
-<code>${esc(apipayWebhookUrl())}</code></div>
 <p>Можно вернуться в Altegio и создать запись для проверки.</p>`
       )
     );

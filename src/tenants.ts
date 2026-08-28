@@ -52,7 +52,12 @@ export interface TenantInput {
   altegioAccountId: string;
   altegioExpenseId?: number;
   apipayApiKey: string;
-  apipayWebhookSecret: string;
+  /**
+   * Устарело: вебхук ApiPay теперь один на всё приложение, и секрет к нему
+   * общий (`APIPAY_WEBHOOK_SECRET`). Поле осталось для салонов, заведённых
+   * со своим секретом до перехода.
+   */
+  apipayWebhookSecret?: string;
   title?: string;
 }
 
@@ -78,7 +83,7 @@ export function upsert(input: TenantInput): Tenant {
     input.altegioAccountId,
     input.altegioExpenseId ?? 5,
     input.apipayApiKey,
-    input.apipayWebhookSecret,
+    input.apipayWebhookSecret ?? "",
     input.title ?? null
   );
 

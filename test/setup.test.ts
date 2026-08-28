@@ -62,6 +62,23 @@ test("после настройки в ссылке остаётся филиа�
   assert.ok(done?.completed_at);
 });
 
+test("салон заводится без секрета вебхука — он теперь общий для приложения", () => {
+  const tenant = tenants.upsert({
+    altegioCompanyId: "1000012",
+    altegioUserToken: "user-token",
+    altegioAccountId: "111",
+    apipayApiKey: "key",
+  });
+
+  assert.equal(tenant.apipay_webhook_secret, "");
+  // Пустой секрет не должен ни с чем совпадать: иначе им можно было бы
+  // подписать что угодно от имени такого салона.
+  assert.equal(
+    tenants.findByApipaySignature(Buffer.from("{}"), "sha256=" + "0".repeat(64)),
+    undefined
+  );
+});
+
 test("отключение приложения выводит салон из обслуживания", () => {
   tenants.upsert({
     altegioCompanyId: "1000011",
