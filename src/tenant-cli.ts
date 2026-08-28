@@ -6,6 +6,7 @@
  *   docker compose exec app node dist/tenant-cli.js add --company 1354369 \
  *       --user-token ... --account 2747575 --apipay-key ... --apipay-secret ...
  *   docker compose exec app node dist/tenant-cli.js setup-link --company 1354369
+ *   docker compose exec app node dist/tenant-cli.js enable --company 1354369
  *   docker compose exec app node dist/tenant-cli.js disable --company 1354369
  *
  * Локально при разработке: npm run tenant -- list
@@ -105,6 +106,18 @@ switch (command) {
     break;
   }
 
+  // Салон отключал и снова подключил приложение: на отключении мы его
+  // выключили, а обратного сигнала Altegio не присылает.
+  case "enable": {
+    const companyId = required("company");
+    console.log(
+      tenants.activate(companyId)
+        ? `Салон ${companyId} снова обслуживается.`
+        : `Салон ${companyId} не найден или уже активен.`
+    );
+    break;
+  }
+
   case "disable": {
     const companyId = required("company");
     console.log(
@@ -115,6 +128,6 @@ switch (command) {
 
   default:
     console.log(
-      "Команды: list | pending | add | setup-link | disable  (см. комментарий в начале файла)"
+      "Команды: list | pending | add | setup-link | enable | disable  (см. комментарий в начале файла)"
     );
 }

@@ -112,6 +112,14 @@ docker compose exec app node dist/tenant-cli.js add --company 1354369 --user-tok
 docker compose exec app node dist/tenant-cli.js disable --company 1354369
 ```
 
+Отключение приложения в Altegio выключает салон автоматически. Обратного
+сигнала Altegio не присылает, поэтому после повторного подключения салон
+включается командой:
+
+```bash
+docker compose exec app node dist/tenant-cli.js enable --company 1354369
+```
+
 Если салон поставил приложение в Altegio, но у нас ещё не настроен, его события
 пропускаются, а сам салон попадает в список ожидающих:
 

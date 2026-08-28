@@ -91,6 +91,16 @@ export function upsert(input: TenantInput): Tenant {
   return findByCompanyId(input.altegioCompanyId)!;
 }
 
+/** Салон снова подключил приложение — возвращаем в обслуживание. */
+export function activate(companyId: string | number): boolean {
+  const res = db
+    .prepare(
+      "UPDATE tenants SET active = 1, updated_at = datetime('now') WHERE altegio_company_id = ? AND active = 0"
+    )
+    .run(String(companyId));
+  return Number(res.changes) > 0;
+}
+
 /** Салон отключил приложение в Altegio — перестаём его обслуживать. */
 export function deactivate(companyId: string | number): boolean {
   const res = db
