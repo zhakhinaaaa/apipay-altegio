@@ -66,3 +66,42 @@ ApiPay1 (партнёр 2548).
     POST /webhooks/altegio  <- Altegio (UA GuzzleHttp/7), 2 события, 1 счёт
     POST /webhooks/apipay   <- ApiPay  (UA Kaspi-Pay-API/1.0)
     -> приход 9000 в кассе «Расчетный счет», комментарий со счётом
+
+## Маркетплейс: что выяснилось 2026-08-28
+
+### Подключение салона
+
+- **Registration Redirect Url работает только у Public-приложения.** Пока
+  приложение было Non-public, кнопка Connect подключала салон молча: браузер
+  оставался в карточке приложения, на наш адрес не приходило ничего. После
+  переключения на Public тот же Connect стал вести на
+  `GET /altegio/install?salon_id=<company_id>`.
+- В редиректе приходит **только `salon_id`**. Галочка «Pass user data when
+  connecting the integration» ничего не добавляет, галочка «Open registration
+  form in iframe» вкладку Settings в карточке не показывает — форма всё равно
+  открывается отдельной страницей.
+- Отключение приходит на Callback Url: `POST /altegio/uninstall`, тело
+  `{salon_id, application_id, event: "uninstall", partner_token}`.
+  Обратного события при повторном подключении Altegio **не присылает** —
+  поэтому у CLI есть `enable`.
+
+### Чего приложению нельзя
+
+Системный User Token приложения (раздел API Access) даёт читать сотрудников,
+услуги, компанию и записи, но **не финансы филиала**:
+
+    GET /accounts/{company_id}      → No rights to manage the location
+    GET /transactions/{company_id}  → No rights to manage the location
+
+Так отвечает и при полностью выданных правах (Finance 13/13, Settings 30/30).
+Обходных путей нет: без `User` заголовка — «No user ID specified»,
+`/company/{id}/accounts` и `/api/v2/...` — «An error occurred».
+
+При этом запись работает, и касса в ней обязательна:
+
+    POST /finance_transactions/{company_id} с пустым телом
+      → Cash register ID is required
+
+Отсюда и решение: номер кассы салон вводит на странице настройки сам.
+`listAccounts` в коде оставлен — если Altegio когда-нибудь откроет доступ,
+форма сразу начнёт подставлять кассу без вопросов.
