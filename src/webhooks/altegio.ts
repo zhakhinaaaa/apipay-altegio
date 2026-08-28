@@ -12,6 +12,35 @@ interface AltegioEvent {
   data?: { id?: number; attendance?: number; deleted?: boolean };
 }
 
+/** Значения, по которым Altegio опознаёт салон, безопасны для лога; остальное маскируем. */
+const SAFE_KEYS = new Set([
+  "salon_id",
+  "company_id",
+  "application_id",
+  "app_id",
+  "partner_id",
+  "user_id",
+  "state",
+  "lang",
+]);
+
+/**
+ * Показывает форму параметров, не раскрывая токены: имена ключей видны целиком,
+ * значения — только у заведомо несекретных.
+ */
+function describeParams(source: unknown): Record<string, string> | undefined {
+  if (!source || typeof source !== "object") return undefined;
+
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
+    const text = value === null || value === undefined ? "" : String(value);
+    out[key] = SAFE_KEYS.has(key.toLowerCase())
+      ? text
+      : `<${text.length} символов>`;
+  }
+  return out;
+}
+
 /** true — событие новое, false — уже обрабатывали. */
 function claimEvent(dedupeKey: string): boolean {
   const result = db
@@ -24,8 +53,15 @@ export const altegioWebhookRoutes: FastifyPluginAsync = async (app: FastifyInsta
   // Altegio ведёт сюда после согласия на подключение приложения к филиалу
   // (Registration Redirect Url). Достаточно ответить 200 — установка завершится.
   // Параметры логируем: по ним заводится новый салон в таблице tenants.
-  app.get("/altegio/install", async (req, reply) => {
-    req.log.info({ query: req.query }, "altegio: установка приложения в филиал");
+  app.all("/altegio/install", async (req, reply) => {
+    req.log.info(
+      {
+        method: req.method,
+        query: describeParams(req.query),
+        body: describeParams(req.body),
+      },
+      "altegio: установка приложения в филиал"
+    );
     return reply.type("text/html").send(
       "<h2>ApiPay ↔ Altegio</h2><p>Интеграция подключена. Можно вернуться в Altegio.</p>"
     );
@@ -33,7 +69,14 @@ export const altegioWebhookRoutes: FastifyPluginAsync = async (app: FastifyInsta
 
   // Altegio дёргает этот адрес при отключении интеграции (Callback Url).
   app.all("/altegio/uninstall", async (req, reply) => {
-    req.log.warn({ query: req.query }, "altegio: интеграция отключена");
+    req.log.warn(
+      {
+        method: req.method,
+        query: describeParams(req.query),
+        body: describeParams(req.body),
+      },
+      "altegio: интеграция отключена"
+    );
     return reply.code(200).send({ ok: true });
   });
 
