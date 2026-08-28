@@ -84,7 +84,9 @@ async function request<T>(
 export interface AltegioAccount {
   id: number;
   title: string;
-  is_cash?: number;
+  /** `cash` — наличная касса, `cashless` — безналичная (расчётный счёт). */
+  type_slug?: string;
+  comment?: string;
 }
 
 /**

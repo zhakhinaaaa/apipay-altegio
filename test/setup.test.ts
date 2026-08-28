@@ -26,6 +26,18 @@ test("нечисловые и пустые значения за ID филиал
   assert.equal(setup.extractCompanyId(undefined, "строка", 5), undefined);
 });
 
+test("предоплата зачисляется на безналичную кассу, а не на первую попавшуюся", () => {
+  const accounts = [
+    { id: 2747574, title: "Основная касса", type_slug: "cash" },
+    { id: 2747575, title: "Расчетный счет", type_slug: "cashless" },
+  ];
+
+  assert.equal(setup.defaultAccount(accounts)?.id, 2747575);
+  // Безналичной кассы нет — берём первую, иначе подключать салон будет некуда.
+  assert.equal(setup.defaultAccount([accounts[0]])?.id, 2747574);
+  assert.equal(setup.defaultAccount([]), undefined);
+});
+
 test("ссылка на настройку находится по своему токену", () => {
   const session = setup.createSession("1354369");
   const found = setup.findSession(session.token);

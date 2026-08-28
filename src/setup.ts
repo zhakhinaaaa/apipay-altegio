@@ -112,8 +112,8 @@ function message(title: string, text: string): string {
  * а если такой нет — первую из списка. Салон кассу не выбирает: цель страницы —
  * один-единственный ввод, API-ключ.
  */
-function defaultAccount(accounts: altegio.AltegioAccount[]): altegio.AltegioAccount | undefined {
-  return accounts.find((a) => !a.is_cash) ?? accounts[0];
+export function defaultAccount(accounts: altegio.AltegioAccount[]): altegio.AltegioAccount | undefined {
+  return accounts.find((a) => a.type_slug === "cashless") ?? accounts[0];
 }
 
 interface FormState {
