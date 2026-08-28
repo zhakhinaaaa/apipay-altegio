@@ -119,7 +119,6 @@ export function defaultAccount(accounts: altegio.AltegioAccount[]): altegio.Alte
 interface FormState {
   companyId: string | null;
   accounts: altegio.AltegioAccount[];
-  accountsError?: string;
   values: Record<string, string>;
   error?: string;
 }
@@ -137,17 +136,16 @@ function form(state: FormState): string {
   const preset = defaultAccount(state.accounts);
   const accountField = preset
     ? `<p class="hint">Предоплата будет зачисляться в кассу «${esc(preset.title)}».</p>`
-    : `<label>ID кассы Altegio
-  <div class="hint">${esc(
-    state.accountsError ?? "Список касс получить не удалось — введите ID кассы вручную"
-  )}</div>
+    : `<label>Номер кассы Altegio
+  <div class="hint">Куда зачислять предоплату. Altegio → Настройки → Кассы:
+    откройте нужную кассу, её номер будет в адресной строке.</div>
   <input name="account_id" inputmode="numeric" required value="${esc(v.account_id)}">
 </label>`;
 
   return page(
     "Подключение ApiPay",
     `<h1>Подключение ApiPay</h1>
-<p class="sub">Остался один шаг: укажите API-ключ вашего аккаунта ApiPay — после этого
+<p class="sub">Остался один шаг: укажите реквизиты вашего аккаунта ApiPay — после этого
 счета на предоплату будут выставляться автоматически.</p>
 
 ${state.error ? `<div class="error">${esc(state.error)}</div>` : ""}
@@ -205,7 +203,12 @@ interface SetupBody {
   account_id?: string;
 }
 
-/** Кассы филиала; ошибку не бросаем — форма умеет работать и без списка. */
+/**
+ * Кассы филиала. Приложениям маркетплейса Altegio читать финансы не даёт
+ * («No rights to manage the location»), сколько прав приложению ни выдай, —
+ * поэтому список обычно пуст, и салон вводит номер кассы сам. Запрос оставлен:
+ * если доступ появится, форма сразу начнёт подставлять кассу без вопросов.
+ */
 async function loadAccounts(
   app: FastifyInstance,
   companyId: string | null
@@ -251,7 +254,6 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       form({
         companyId: session.altegio_company_id,
         accounts,
-        accountsError,
         values: {
           company_id: "",
           apipay_api_key: "",
@@ -287,7 +289,6 @@ export const setupRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
           form({
             companyId: session.altegio_company_id,
             accounts,
-            accountsError,
             values: {
               company_id: companyId,
               apipay_api_key: apiKey,
