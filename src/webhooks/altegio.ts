@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
+import { config } from "../config";
 import { db } from "../db";
 import { BookingError, createInvoiceForRecord } from "../booking";
 import * as tenants from "../tenants";
@@ -70,6 +71,27 @@ function describeUserData(query: unknown): Record<string, string> | string | und
   return `<не разобрано, ${raw.length} символов, начинается с ${raw.slice(0, 12)}>`;
 }
 
+/** ID приложения, которое отключают: Altegio кладёт его рядом с salon_id. */
+export function extractApplicationId(...sources: unknown[]): string | undefined {
+  for (const source of sources) {
+    if (!source || typeof source !== "object") continue;
+    const params = source as Record<string, unknown>;
+    const raw = params.application_id ?? params.app_id;
+    if (raw !== undefined && raw !== null && String(raw)) return String(raw);
+  }
+  return undefined;
+}
+
+/**
+ * Отключили не нас. У салона стоят и другие приложения партнёра, и uninstall
+ * от любого из них не должен гасить нашу интеграцию.
+ * Без заданного ALTEGIO_APPLICATION_ID отличить нельзя — тогда доверяем.
+ */
+export function isForeignUninstall(applicationId: string | undefined): boolean {
+  const ours = config.altegio.applicationId;
+  return Boolean(ours && applicationId && applicationId !== ours);
+}
+
 /** true — событие новое, false — уже обрабатывали. */
 function claimEvent(dedupeKey: string): boolean {
   const result = db
@@ -108,17 +130,23 @@ export const altegioWebhookRoutes: FastifyPluginAsync = async (app: FastifyInsta
   // Салон отключился — перестаём обслуживать его записи.
   app.all("/altegio/uninstall", async (req, reply) => {
     const companyId = extractCompanyId(req.query, req.body);
-    const deactivated = companyId ? tenants.deactivate(companyId) : false;
+    const applicationId = extractApplicationId(req.query, req.body);
+    const foreign = isForeignUninstall(applicationId);
+
+    const deactivated = companyId && !foreign ? tenants.deactivate(companyId) : false;
 
     req.log.warn(
       {
         method: req.method,
         companyId: companyId ?? null,
+        applicationId: applicationId ?? null,
         deactivated,
         query: describeParams(req.query),
         body: describeParams(req.body),
       },
-      "altegio: интеграция отключена"
+      foreign
+        ? "altegio: отключили другое приложение — салон оставляем"
+        : "altegio: интеграция отключена"
     );
     return reply.code(200).send({ ok: true });
   });

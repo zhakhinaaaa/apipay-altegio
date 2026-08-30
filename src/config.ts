@@ -20,6 +20,13 @@ export const config = {
   altegio: {
     baseUrl: optional("ALTEGIO_BASE_URL") || "https://api.alteg.io/api/v1",
     partnerId: optional("ALTEGIO_PARTNER_ID"),
+    /**
+     * ID нашего приложения в маркетплейсе. Нужен, чтобы отличить отключение
+     * нашей интеграции от отключения другого приложения того же партнёра:
+     * Altegio шлёт uninstall на Callback Url каждого из них.
+     * Пусто — доверяем любому uninstall, как раньше.
+     */
+    applicationId: optional("ALTEGIO_APPLICATION_ID"),
     // ID приложения в маркетплейсе — нужен, чтобы увести салон обратно в его карточку.
     appId: optional("ALTEGIO_APP_ID"),
     partnerToken: optional("ALTEGIO_PARTNER_TOKEN"),
